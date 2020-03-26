@@ -16,11 +16,11 @@ from sklearn import model_selection
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from statsmodels.tools.eval_measures import rmse
-from sklearn.svm import SVR
 
-def boxplot(df, name,min,max):
+
+def boxplot(df):
     plt.figure(figsize=(30, 10))
-    plt.title(name+ " RMSE from  "+ str(min) +"h PSW to " + str(max) +"h PWS")
+    plt.title("ARIMA RMSE from 3h PSW to 36h PWS")
     plt.ylabel("RMSE")
     plt.xlabel("")
 
@@ -118,9 +118,7 @@ def RFSVM(window, df, X, y ,x, n,v, interval, windo,fun):
         # predictions
         pred = rfc.predict(X_test)
     if (fun ==3):
-        
-        svclassifier = SVR()
-        #svclassifier = SVC(kernel='linear')
+        svclassifier = SVC(kernel='linear')
         svclassifier.fit(X_train, y_train)
 
         pred = svclassifier.predict(X_test)
@@ -130,7 +128,7 @@ def RFSVM(window, df, X, y ,x, n,v, interval, windo,fun):
     return window
 
 
-def prediction(df, fun,freq,*args, **kwargs):
+def prediction(df, fun,*args, **kwargs):
     for ar in args:
         pass
     
@@ -140,16 +138,11 @@ def prediction(df, fun,freq,*args, **kwargs):
     start_time = time.time()
 
     window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval'])
-   
     list = [12,24,48,96,144] 
-    inter = 4
-    
-    if(freq ==2):
-        list = [192,240,288]  ##high PSW
-        inter = 12
+ 
 
     for z in list:
-        for v in range(0,inter):
+        for v in range(4):
             n=z ##3h
             
             interval = (v+1)*15
