@@ -17,19 +17,23 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from statsmodels.tools.eval_measures import rmse
 from sklearn.svm import SVR
+from PIL import Image
 
 def boxplot(df, name,min,max):
-    plt.figure(figsize=(30, 10))
+    plt.figure(figsize=(100, 20))
     plt.title(name+ " RMSE from  "+ str(min) +"h PSW to " + str(max) +"h PWS")
     plt.ylabel("RMSE")
     plt.xlabel("")
+    
 
 
-    box_plot = sns.boxplot(x="Interval" ,y="RMSE" ,data=df, showfliers = False)
+    box_plot = sns.boxplot(x="Interval" ,y="RMSE", hue="cat", data=df, palette="Set1", showfliers = False)
+    
 
     ax = box_plot.axes
     lines = ax.get_lines()
     categories = ax.get_xticks()
+
 
     for cat in categories:
         # every 4th line at the interval of 6 is median line
@@ -49,7 +53,8 @@ def boxplot(df, name,min,max):
         
 
     box_plot.figure.tight_layout()
-
+    
+    plt.savefig(name +".jpg")
 
 def loaddataset(file, user):
     series = read_csv(file, header=0, index_col=0, parse_dates=True, squeeze=True)
@@ -82,7 +87,8 @@ def app(window,  train, test, pred, interval, windo):
                                         'Current test':"From: "+str(test.index[0]) +" to: " + str(test.index[-1]), 
                                         'MSE': np.square(np.subtract(test , pred)).mean(),
                                         'RMSE': rmse(test, pred),
-                                        'Interval': str(interval) + "Min" + " "+ str(int(round(windo)))+ "PSW" },ignore_index=True)
+                                        'Interval': str(interval) + "Min" + " "+ str(int(round(windo)))+ "PSW" ,
+                                        'cat': str(interval)},ignore_index=True)
 
     return window
 
@@ -139,11 +145,12 @@ def prediction(df, fun,freq,*args, **kwargs):
 
     start_time = time.time()
 
-    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval'])
+    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval', 'cat'])
    
-    list = [12,24,48,96,144] 
-    inter = 4
-    
+    list = [12,24,48,96,144,192,240,288]  
+    #inter = 4
+    inter = 12
+
     if(freq ==2):
         list = [192,240,288]  ##high PSW
         inter = 12
@@ -173,3 +180,25 @@ def prediction(df, fun,freq,*args, **kwargs):
         
     print("--- %s Seconds for computation ---" % (time.time() - start_time))
     return window
+
+
+
+def joinI():
+        
+
+    im1 = Image.open('Arima.jpg')
+    im2 = Image.open('RF.jpg')
+    im3 = Image.open('SVM.jpg')
+
+    imageL = [im1, im2, im3]
+    min_width = min(im.width for im in imageL)
+    im_list_resize = [im.resize((min_width, int(im.height * min_width / im.width)),resample=Image.BICUBIC)
+                      for im in imageL]
+    total_height = sum(im.height for im in im_list_resize)
+    dst = Image.new('RGB', (min_width, total_height))
+    pos_y = 0
+    for im in im_list_resize:
+        dst.paste(im, (0, pos_y))
+        pos_y += im.height
+    
+    dst.save('result.jpg')
