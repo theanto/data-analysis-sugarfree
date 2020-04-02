@@ -20,19 +20,84 @@ from sklearn.svm import SVR
 from PIL import Image
 
 def boxplot(df, name,min,max):
-    plt.figure(figsize=(100, 20))
+    plt.figure(figsize=(150, 40))
     plt.title(name+ " RMSE from  "+ str(min) +"h PSW to " + str(max) +"h PWS")
     plt.ylabel("RMSE")
     plt.xlabel("")
     
 
 
-    box_plot = sns.boxplot(x="Interval" ,y="RMSE", hue="cat", data=df, palette="Set1", showfliers = False)
+    box_plot = sns.boxplot(x="Interval" ,y="RMSE",  data=df, palette="Set1", showfliers = False)
     
 
     ax = box_plot.axes
     lines = ax.get_lines()
     categories = ax.get_xticks()
+
+    for i in range(0,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('red')
+
+    for i in range(1,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('orange')
+    
+    for i in range(2,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('yellow')
+    
+    for i in range(3,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('green')
+
+    for i in range(4,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('purple')
+
+    for i in range(5,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('brown')
+    
+    for i in range(6,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('grey')
+    
+    for i in range(7,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('gold')
+
+    for i in range(8,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('azure')
+
+    for i in range(9,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('salmon')
+    
+    for i in range(10,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('lime')
+    
+    for i in range(11,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('whitesmoke')
+    
+    for i in range(12,len(box_plot.artists),12):
+
+        mybox = ax.artists[i]
+        mybox.set_facecolor('indigo')
 
 
     for cat in categories:
@@ -126,7 +191,7 @@ def RFSVM(window, df, X, y ,x, n,v, interval, windo,fun):
     if (fun ==3):
         
         svclassifier = SVR()
-        #svclassifier = SVC(kernel='linear')
+        
         svclassifier.fit(X_train, y_train)
 
         pred = svclassifier.predict(X_test)
