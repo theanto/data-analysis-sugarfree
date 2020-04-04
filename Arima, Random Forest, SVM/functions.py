@@ -18,108 +18,45 @@ from sklearn.svm import SVC
 from statsmodels.tools.eval_measures import rmse
 from sklearn.svm import SVR
 from PIL import Image
+import os
 
-def boxplot(df, name,min,max):
-    plt.figure(figsize=(150, 40))
-    plt.title(name+ " RMSE from  "+ str(min) +"h PSW to " + str(max) +"h PWS")
-    plt.ylabel("RMSE")
-    plt.xlabel("")
+
+def boxplot(df, name):
     
 
+    g = sns.catplot(kind='box', data=df, x='PH', y='RMSE', col='Interval', height=20, aspect=0.5, palette='Greys', showfliers = False)
+    g.fig.subplots_adjust(wspace=0)
 
-    box_plot = sns.boxplot(x="Interval" ,y="RMSE",  data=df, palette="Set1", showfliers = False)
+    # remove the spines of the axes (except the leftmost one)
+    # and replace with dasehd line
+    for ax  in g.axes.flatten()[0:]:
+        ax.spines['left'].set_visible(False)
+        [tick.set_visible(False) for tick in ax.yaxis.get_major_ticks()]
+        xmin,xmax = ax.get_xlim()
+        ax.axvline(xmin, ls='--', color='k')
+
+        lines = ax.get_lines()
+        categories = ax.get_xticks()
+
+
+        for cat in categories:
+            # every 4th line at the interval of 6 is median line
+            # 0 -> p25 1 -> p75 2 -> lower whisker 3 -> upper whisker 4 -> p50 5 -> upper extreme value
+            y = round(lines[4+cat*5].get_ydata()[0],3) 
+
+            ax.text(
+                cat, 
+                y, 
+                f'{y}', 
+                ha='center', 
+                va='center', 
+                fontweight='bold', 
+                size=10,
+                color='white',
+                bbox=dict(facecolor='#445A64'))
     
+    plt.savefig(str(name) +".jpg")
 
-    ax = box_plot.axes
-    lines = ax.get_lines()
-    categories = ax.get_xticks()
-
-    for i in range(0,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('red')
-
-    for i in range(1,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('orange')
-    
-    for i in range(2,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('yellow')
-    
-    for i in range(3,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('green')
-
-    for i in range(4,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('purple')
-
-    for i in range(5,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('brown')
-    
-    for i in range(6,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('grey')
-    
-    for i in range(7,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('gold')
-
-    for i in range(8,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('azure')
-
-    for i in range(9,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('salmon')
-    
-    for i in range(10,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('lime')
-    
-    for i in range(11,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('whitesmoke')
-    
-    for i in range(12,len(box_plot.artists),12):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('indigo')
-
-
-    for cat in categories:
-        # every 4th line at the interval of 6 is median line
-        # 0 -> p25 1 -> p75 2 -> lower whisker 3 -> upper whisker 4 -> p50 5 -> upper extreme value
-        y = round(lines[4+cat*5].get_ydata()[0],3) 
-        
-        ax.text(
-            cat, 
-            y, 
-            f'{y}', 
-            ha='center', 
-            va='center', 
-            fontweight='bold', 
-            size=10,
-            color='white',
-            bbox=dict(facecolor='#445A64'))
-        
-
-    box_plot.figure.tight_layout()
-    
-    plt.savefig(name +".jpg")
 
 def loaddataset(file, user):
     series = read_csv(file, header=0, index_col=0, parse_dates=True, squeeze=True)
@@ -152,8 +89,8 @@ def app(window,  train, test, pred, interval, windo):
                                         'Current test':"From: "+str(test.index[0]) +" to: " + str(test.index[-1]), 
                                         'MSE': np.square(np.subtract(test , pred)).mean(),
                                         'RMSE': rmse(test, pred),
-                                        'Interval': str(interval) + "Min" + " "+ str(int(round(windo)))+ "PSW" ,
-                                        'cat': str(interval)},ignore_index=True)
+                                        'Interval': int(round(windo)) ,
+                                         'PH': interval },ignore_index=True)
 
     return window
 
@@ -201,7 +138,7 @@ def RFSVM(window, df, X, y ,x, n,v, interval, windo,fun):
     return window
 
 
-def prediction(df, fun,freq,*args, **kwargs):
+def prediction(df, fun,*args, **kwargs):
     for ar in args:
         pass
     
@@ -210,17 +147,16 @@ def prediction(df, fun,freq,*args, **kwargs):
 
     start_time = time.time()
 
-    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval', 'cat'])
    
     list = [12,24,48,96,144,192,240,288]  
     #inter = 4
     inter = 12
+    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval', 'PH'])
 
-    if(freq ==2):
-        list = [192,240,288]  ##high PSW
-        inter = 12
 
     for z in list:
+        
+
         for v in range(0,inter):
             n=z ##3h
             
@@ -236,11 +172,11 @@ def prediction(df, fun,freq,*args, **kwargs):
                     window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
                 if fun == 3:
                     window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
+                    
                 n= n+1
                 
-                
+             
             v= v+1
-
         
         
     print("--- %s Seconds for computation ---" % (time.time() - start_time))
@@ -266,4 +202,33 @@ def joinI():
         dst.paste(im, (0, pos_y))
         pos_y += im.height
     
-    dst.save('result.jpg')
+    dst.save("Result.jpg")
+    
+    os.remove("Arima.jpg")
+    os.remove("RF.jpg")
+    os.remove("SVM.jpg")
+
+
+def joinO(name):
+    
+
+    images = [Image.open(x) for x in [ str(name)+" 12.jpg", str(name)+" 24.jpg", str(name)+" 48.jpg", str(name)+" 96.jpg", str(name)+" 144.jpg", str(name)+" 192.jpg",str(name)+" 240.jpg", str(name)+" 288.jpg"]]
+    widths, heights = zip(*(i.size for i in images))
+
+    total_width = sum(widths)
+    max_height = max(heights)
+
+    new_im = Image.new('RGB', (total_width, max_height))
+
+    x_offset = 0
+    for im in images:
+        new_im.paste(im, (x_offset,0))
+        x_offset += im.size[0]
+        os.remove(im)
+
+    new_im.save("Result " + str(name) +".jpg")
+
+    imgs= [ str(name)+" 12.jpg", str(name)+" 24.jpg", str(name)+" 48.jpg", str(name)+" 96.jpg", str(name)+" 144.jpg", str(name)+" 192.jpg",str(name)+" 240.jpg", str(name)+" 288.jpg"]
+    for ims in imgs:
+
+        os.remove(ims)
