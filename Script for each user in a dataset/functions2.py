@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pandas import read_csv
 import datetime
-from pmdarima import auto_arima
+#from pmdarima import auto_arima
 from statsmodels.tools.eval_measures import rmse
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -30,69 +30,43 @@ warnings.filterwarnings('ignore')
 
 
 
-def boxplot(df, name, x,min,max):
-    plt.figure(figsize=(100, 20))
-    plt.title(name+ " RMSE from  "+ str(min) +"h PSW to " + str(max) +"h PWS")
-    plt.ylabel("RMSE")
-    plt.xlabel("")
+def boxplot(df, name, fold):
     
 
-    box_plot = sns.boxplot(x="Interval" ,y="RMSE", data=df, palette="Set1", showfliers = False)
+    g = sns.catplot(kind='box', data=df, x='PH', y='RMSE', col='Interval', height=7, aspect=0.5, palette='Greys', showfliers = False)
+    g.fig.subplots_adjust(wspace=0)
+
+    # remove the spines of the axes (except the leftmost one)
+    # and replace with dasehd line
+    for ax  in g.axes.flatten()[0:]:
+        ax.spines['left'].set_visible(False)
+        [tick.set_visible(False) for tick in ax.yaxis.get_major_ticks()]
+        xmin,xmax = ax.get_xlim()
+        ax.axvline(xmin, ls='--', color='k')
+
+        lines = ax.get_lines()
+        categories = ax.get_xticks()
 
 
+        for cat in categories:
+            # every 4th line at the interval of 6 is median line
+            # 0 -> p25 1 -> p75 2 -> lower whisker 3 -> upper whisker 4 -> p50 5 -> upper extreme value
+            y = round(lines[4+cat*5].get_ydata()[0],3) 
 
-
-    ax = box_plot.axes
-    lines = ax.get_lines()
-    categories = ax.get_xticks()
-
-
-# iterate over boxes
-
-    for i in range(0,len(box_plot.artists),4):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('red')
-
-    for i in range(1,len(box_plot.artists),4):
-
-        mybox = ax.artists[i]
-        mybox.set_facecolor('orange')
+            ax.text(
+                cat, 
+                y, 
+                f'{y}', 
+                ha='center', 
+                va='center', 
+                fontweight='bold', 
+                size=10,
+                color='white',
+                bbox=dict(facecolor='#445A64'))
     
-    for i in range(2,len(box_plot.artists),4):
+    plt.savefig("uid/" + str(fold)+"/"+ str(name) +".jpg")
 
-        mybox = ax.artists[i]
-        mybox.set_facecolor('yellow')
-    
-    for i in range(3,len(box_plot.artists),4):
 
-        mybox = ax.artists[i]
-        mybox.set_facecolor('green')
- 
-
-    for cat in categories:
-        # every 4th line at the interval of 6 is median line
-        # 0 -> p25 1 -> p75 2 -> lower whisker 3 -> upper whisker 4 -> p50 5 -> upper extreme value
-        y = round(lines[4+cat*5].get_ydata()[0],3) 
-        
-        ax.text(
-            cat, 
-            y, 
-            f'{y}', 
-            ha='center', 
-            va='center', 
-            fontweight='bold', 
-            size=100,
-            color='white',
-            bbox=dict(facecolor='#445A64'))
-        
-   
-        
-
-    box_plot.figure.tight_layout()
-    
-    plt.savefig("uid/" + str(x)+"/"+ str(name) +".jpg")
-    
 
 
 def loaddataset(file):
@@ -140,7 +114,7 @@ def app(window,  train, test, pred, interval, windo):
                                         'Current test':"From: "+str(test.index[0]) +" to: " + str(test.index[-1]), 
                                         'MSE': np.square(np.subtract(test , pred)).mean(),
                                         'RMSE': rmse(test, pred),
-                                        'Interval': str(interval) + "Min" + " "+ str(int(round(windo)))+ "PSW" ,
+                                        'Interval': int(round(windo)) ,
                                          'PH': str(interval)},ignore_index=True)
     return window
 
@@ -196,23 +170,26 @@ def prediction(df, fun,*args, **kwargs):
     
     X= args[0]
     y= args[1]
-    
+    j= args[2] ##number of dataset
 
     start_time = time.time()
 
-    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval'])
     list = [12,24,48,96,144] 
+    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval'])
  
+    graph=0
 
     for z in list:
+        #window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval'])
+
+       
         for v in range(4):
             n=z ##48 hour
             
             interval = (v+1)*15
             windo= n/4
             
-            print(z,v)
-
+            
             for x in range((len(df)-n-v)):
                 
 
@@ -229,16 +206,28 @@ def prediction(df, fun,*args, **kwargs):
                 
             v= v+1
 
-        
-        
     print("--- %s Seconds for computation ---" % (time.time() - start_time))
     return window
 
+'''
+        if (fun ==1):
+            boxplot(window, "Arima "+str(z),j,graph, 15, 60) 
+        if (fun ==2):    
+            boxplot(window, "RF "+str(z),j,graph, 15, 60) 
+        if (fun ==3):
+            boxplot(window, "SVM "+str(z),j,graph, 15, 60)  
 
-def joinI(x):
+        graph += 1
+        print(graph)
+        '''
         
     
 
+
+
+
+def joinI(x):
+    
     im1 = Image.open("uid/"+str(x)+'/Arima.jpg')
     im2 = Image.open("uid/"+str(x)+'/RF.jpg')
     im3 = Image.open("uid/"+str(x)+'/SVM.jpg')
@@ -246,7 +235,7 @@ def joinI(x):
     imageL = [im1, im2, im3]
     min_width = min(im.width for im in imageL)
     im_list_resize = [im.resize((min_width, int(im.height * min_width / im.width)),resample=Image.BICUBIC)
-                    for im in imageL]
+                      for im in imageL]
     total_height = sum(im.height for im in im_list_resize)
     dst = Image.new('RGB', (min_width, total_height))
     pos_y = 0
@@ -254,4 +243,37 @@ def joinI(x):
         dst.paste(im, (0, pos_y))
         pos_y += im.height
     
-    dst.save("uid/"+str(x)+"/result"+str(x)+".jpg")
+    dst.save("uid/"+str(x)+"/result.jpg")
+
+    os.remove("uid/"+str(x)+"/Arima.jpg")
+    os.remove("uid/"+str(x)+"/RF.jpg")
+    os.remove("uid/"+str(x)+"/SVM.jpg")
+
+
+def joinO(name,x):
+    
+
+    images = [Image.open(x) for x in [ "uid/"+str(x)+'/'+str(name)+" 12.jpg", "uid/"+str(x)+'/'+str(name)+" 24.jpg", "uid/"+str(x)+'/'+str(name)+" 48.jpg", "uid/"+str(x)+'/'+str(name)+" 96.jpg",
+     "uid/"+str(x)+'/'+str(name)+" 144.jpg"]]
+    widths, heights = zip(*(i.size for i in images))
+
+    total_width = sum(widths)
+    max_height = max(heights)
+
+    new_im = Image.new('RGB', (total_width, max_height))
+
+    x_offset = 0
+    for im in images:
+        new_im.paste(im, (x_offset,0))
+        x_offset += im.size[0]
+        
+
+    new_im.save("uid/"+str(x)+"/Result " + str(name) +".jpg")
+   
+    imgs= [ "uid/"+str(x)+'/'+str(name)+" 12.jpg", "uid/"+str(x)+'/'+str(name)+" 24.jpg", "uid/"+str(x)+'/'+str(name)+" 48.jpg", "uid/"+str(x)+'/'+str(name)+" 96.jpg",
+     "uid/"+str(x)+'/'+str(name)+" 144.jpg"]
+    for ims in imgs:
+
+        os.remove(ims)
+    #os.remove("uid/"+str(x)+'/RF.jpg')
+    #os.remove("uid/"+str(x)+'/SVM.jpg')
