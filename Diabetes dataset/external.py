@@ -89,8 +89,8 @@ def preprocess(data, fun):
 
 
 def app(window,  train, test, pred, interval, windo):
-    window = window.append({'Current train': "From: "+str(train.index[0]) +" to: " + str(train.index[-1]) , 
-                                        'Current test':"From: "+str(test.index[0]) +" to: " + str(test.index[-1]), 
+    window = window.append({'Current test': test.values, 
+                                        'Current prediction': pred, 
                                         'MSE': np.square(np.subtract(test , pred)).mean(),
                                         'RMSE': rmse(test, pred),
                                         'Interval': int(round(windo)) ,
@@ -154,7 +154,7 @@ def prediction(df, fun,freq,*args, **kwargs):
 
     start_time = time.time()
 
-    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval', 'PH'])
+    window = pd.DataFrame(columns=['Current test', 'Current prediction','MSE', 'RMSE', 'Interval', 'PH'])
    
     list = [12,24,48,96,144]  
     
@@ -180,6 +180,7 @@ def prediction(df, fun,freq,*args, **kwargs):
                     window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
                 if fun == 3:
                     window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
+
                 n= n+1
                 
                 
