@@ -23,27 +23,34 @@ import os
 
 def boxplot(df, name):
     
+    sns.set(font_scale=2)
 
-    g = sns.catplot(kind='box', data=df, x='PH', y='RMSE', col='Interval', height=20, aspect=0.5, palette='Greys', showfliers = False)
+    g = sns.catplot(kind='box', data=df, x='Prediction Horizon (minutes)', y='Glycemia prediction RMSE (mg/dl)', col='PSW', height=10, aspect=0.8, palette='Greys', showfliers = False)
+
     g.fig.subplots_adjust(wspace=0)
+
+    plt.subplots_adjust(top=0.8)
+    g.fig.suptitle('Past sliding window (PSW)') 
 
     # remove the spines of the axes (except the leftmost one)
     # and replace with dasehd line
     for ax  in g.axes.flatten()[0:]:
         ax.spines['left'].set_visible(False)
-        [tick.set_visible(False) for tick in ax.yaxis.get_major_ticks()]
+        [tick.set_visible(True) for tick in ax.yaxis.get_major_ticks()]
         xmin,xmax = ax.get_xlim()
         ax.axvline(xmin, ls='--', color='k')
 
+        
         lines = ax.get_lines()
         categories = ax.get_xticks()
 
 
         for cat in categories:
+            
             # every 4th line at the interval of 6 is median line
             # 0 -> p25 1 -> p75 2 -> lower whisker 3 -> upper whisker 4 -> p50 5 -> upper extreme value
             y = round(lines[4+cat*5].get_ydata()[0],3) 
-
+            
             ax.text(
                 cat, 
                 y, 
@@ -51,9 +58,14 @@ def boxplot(df, name):
                 ha='center', 
                 va='center', 
                 fontweight='bold', 
-                size=10,
+                size=15,
                 color='white',
                 bbox=dict(facecolor='#445A64'))
+            
+        for i, ax in enumerate(g.axes.flat):
+            g.axes[0,i].set_xlabel('')
+
+        g.axes[0,3].set_xlabel('Predictive Horizon (minutes)')   
     
     plt.savefig(str(name) +".jpg")
 
@@ -85,12 +97,12 @@ def preprocess(data, fun):
 
 
 def app(window,  train, test, pred, interval, windo):
-    window = window.append({'Current train': "From: "+str(train.index[0]) +" to: " + str(train.index[-1]) , 
-                                        'Current test':"From: "+str(test.index[0]) +" to: " + str(test.index[-1]), 
+    window = window.append({'Current test': test.values, 
+                                        'Current prediction': pred, 
                                         'MSE': np.square(np.subtract(test , pred)).mean(),
-                                        'RMSE': rmse(test, pred),
-                                        'Interval': int(round(windo)) ,
-                                         'PH': interval },ignore_index=True)
+                                        'Glycemia prediction RMSE (mg/dl)': rmse(test, pred),
+                                        'PSW': int(round(windo)) ,
+                                         'Prediction Horizon (minutes)': interval },ignore_index=True)
 
     return window
 
@@ -151,7 +163,7 @@ def prediction(df, fun,*args, **kwargs):
     list = [12,24,48,96,144,192,240,288]  
     #inter = 4
     inter = 12
-    window = pd.DataFrame(columns=['Current train', 'Current test','MSE', 'RMSE', 'Interval', 'PH'])
+    window = pd.DataFrame(columns=['Current test', 'Current prediction','MSE', 'Glycemia prediction RMSE (mg/dl)', 'PSW', 'Prediction Horizon (minutes)'])
 
 
     for z in list:
