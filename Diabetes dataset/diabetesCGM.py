@@ -63,9 +63,11 @@ for f in xlsx:
         RF = prediction(data2,2,1, X, y,0,0,0)
         SVM = prediction(data2,3,1, X, y,0,0,0)
 
-        conc = pd.concat([Arima, RF, SVM]) 
-
-        conc.to_csv(user+".csv", sep='\t')
+        Arima.to_csv("Arima "+str(user)+".csv", sep='\t')
+        
+        RF.to_csv("RF "+str(user)+".csv", sep='\t')
+        
+        SVM.to_csv("SVM "+str(user)+".csv", sep='\t')
 
         boxplot(Arima,user,  "Arima", 3, 72)
         boxplot(RF, user, "RF", 3, 72)
