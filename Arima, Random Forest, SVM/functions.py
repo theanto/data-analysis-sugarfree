@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from __future__ import division
 import pandas as pd
 import numpy as np
 import time
@@ -10,6 +11,9 @@ from pmdarima import auto_arima
 from statsmodels.tools.eval_measures import rmse
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.arima_model import ARIMA
+
+from sklearn.metrics import mean_squared_error
 
 from sklearn.model_selection import train_test_split
 from sklearn import model_selection
@@ -21,6 +25,18 @@ from PIL import Image
 import os
 
 
+
+import warnings
+warnings.filterwarnings('ignore')
+
+## Global variable
+
+
+PSW=[36,72 , 144, 288, 432]  
+inter= 4
+orderArima= (5, 1, 2)
+
+
 def boxplot(df, name):
     
     sns.set(font_scale=2)
@@ -30,7 +46,8 @@ def boxplot(df, name):
     g.fig.subplots_adjust(wspace=0)
 
     plt.subplots_adjust(top=0.8)
-    g.fig.suptitle('Past sliding window (PSW)') 
+    
+    g.fig.suptitle(str(name)+' Past sliding window (PSW)') 
 
     # remove the spines of the axes (except the leftmost one)
     # and replace with dasehd line
@@ -79,6 +96,40 @@ def loaddataset(file, user):
     data = data.drop(data[data.sugarValue < 1].index, inplace=False)
     return data  
 
+def cleanCGM(df, path, x):
+    
+    data1 = pd.read_excel(str(path)+'/'+str(x) , header=11, parse_dates=['Timestamp'])
+    #data1 = pd.read_excel('Dati CGM/' +str(path) +'/'+str(x) , header=11, parse_dates=['Timestamp'])
+    df = df.append(data1)
+    df = df[['Timestamp', 'BG Reading (mg/dL)','ISIG Value', 'Sensor Glucose (mg/dL)']]
+    df  = df.dropna(thresh=3)
+    df =df.rename({'Sensor Glucose (mg/dL)': 'sugarValue','Timestamp': 'time'}, axis=1)
+    
+    return df
+
+def loadFullDf(file):
+    
+    series = read_csv(file, header=0, index_col=0, parse_dates=True, squeeze=True)
+    dfusers = pd.DataFrame()
+    dfusers = series.reset_index() 
+    uid= dfusers.uid.unique()
+    
+    dataf = {}
+    ind= 0
+    for x in uid: 
+        #if (os.path.isdir('uid/'+str(ind)+'/')  == False) :
+            #os.mkdir('uid/'+str(ind))
+        print("User "+str(ind),  x)
+        dataf[ind] = pd.DataFrame()
+        dataf[ind]= series.loc[x]
+        dataf[ind] = dataf[ind].reset_index()
+        #dataf[ind] = dataf[ind].drop(dataf[ind][dataf[ind].sugarValue > 300].index, inplace=False) 
+        dataf[ind] = dataf[ind].fillna(0)
+        dataf[ind] = dataf[ind].drop(dataf[ind][dataf[ind].sugarValue < 1].index, inplace=False)
+        ind = ind+1
+
+    return dataf
+
 def preprocess(data, fun):
     if(fun ==0):
         data = data[['sugarValue', 'time']]
@@ -91,117 +142,36 @@ def preprocess(data, fun):
         #list(float_col.columns.values)
         for col in float_col.columns.values:
                 data[col] = data[col].astype('int64')
-
+    
+    if(fun ==2):
+        data = data.drop(['time'], axis=1)
+        data = data.fillna(0)
+        float_col = data.select_dtypes(include=['float64']) # This will select float columns only
+        #list(float_col.columns.values)
+        for col in float_col.columns.values:
+                data[col] = data[col].astype('int64')
 
     return data  
 
 
 def app(window,  train, test, pred, interval, windo):
+
     window = window.append({'Current test': test.values, 
                                         'Current prediction': pred, 
-                                        'MSE': np.square(np.subtract(test , pred)).mean(),
-                                        'Glycemia prediction RMSE (mg/dl)': rmse(test, pred),
+                                        'MSE': np.square(np.subtract(test.values , pred)).mean(),
+                                        'Glycemia prediction RMSE (mg/dl)': rmse(test.values, pred),
                                         'PSW': int(round(windo)) ,
                                          'Prediction Horizon (minutes)': interval },ignore_index=True)
 
     return window
 
 
-def ARIMA(window, df ,x, n,v, interval, windo):
-
-   
-    train = df.iloc[x:n]
-    test = df.iloc[n:n+v+1]
-
-    #indces for the train test split
-    start = len(train)
-    end = start + len(test)-1
-
-    model = SARIMAX(df['sugarValue'], order=(0, 1, 3), seasonal_order=(0, 0, 0, 12), enforce_invertibility=False).fit()
-    pred = model.predict(n, n+v)
+def joinI(arima, rf, svm):
     
-    window = app(window, train['sugarValue'], test['sugarValue'] ,pred, interval, windo)
 
-    return window
-
-def RFSVM(window, df, X, y ,x, n,v, interval, windo,fun):
-
-   
-    X_train = X.iloc[x:n]
-    X_test = X.iloc[n:n+v+1]
-    y_train = y.iloc[x:n]
-    y_test = y.iloc[n:n+v+1]
-   
-    if (fun ==2):
-        rfc = RandomForestClassifier()
-        rfc.fit(X_train,y_train)
-        # predictions
-        pred = rfc.predict(X_test)
-    if (fun ==3):
-        
-        svclassifier = SVR()
-        
-        svclassifier.fit(X_train, y_train)
-
-        pred = svclassifier.predict(X_test)
-
-    window = app(window, y_train, y_test ,pred, interval, windo)
-
-    return window
-
-
-def prediction(df, fun,*args, **kwargs):
-    for ar in args:
-        pass
-    
-    X= args[0]
-    y= args[1]
-
-    start_time = time.time()
-
-   
-    list = [12,24,48,96,144,192,240,288]  
-    #inter = 4
-    inter = 12
-    window = pd.DataFrame(columns=['Current test', 'Current prediction','MSE', 'Glycemia prediction RMSE (mg/dl)', 'PSW', 'Prediction Horizon (minutes)'])
-
-
-    for z in list:
-        
-
-        for v in range(0,inter):
-            n=z ##3h
-            
-            interval = (v+1)*15
-            windo= n/4
-            
-            for x in range((len(df)-n-v)):
-            
-                if fun == 1:                   
-                    window = ARIMA(window, df, x, n, v, interval, windo)
-                if fun == 2:
-                    
-                    window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
-                if fun == 3:
-                    window = RFSVM(window, df, X,y,x, n, v, interval, windo,fun)
-                    
-                n= n+1
-                
-             
-            v= v+1
-        
-        
-    print("--- %s Seconds for computation ---" % (time.time() - start_time))
-    return window
-
-
-
-def joinI():
-        
-
-    im1 = Image.open('Arima.jpg')
-    im2 = Image.open('RF.jpg')
-    im3 = Image.open('SVM.jpg')
+    im1 = Image.open(arima+'.jpg')
+    im2 = Image.open(rf+'.jpg')
+    im3 = Image.open(svm+'.jpg')
 
     imageL = [im1, im2, im3]
     min_width = min(im.width for im in imageL)
@@ -214,33 +184,87 @@ def joinI():
         dst.paste(im, (0, pos_y))
         pos_y += im.height
     
-    dst.save("Result.jpg")
+    dst.save("Result"+arima+rf+svm+".jpg")
     
-    os.remove("Arima.jpg")
-    os.remove("RF.jpg")
-    os.remove("SVM.jpg")
+    os.remove(arima+'.jpg')
+    os.remove(rf+'.jpg')
+    os.remove(svm+'.jpg')
 
 
-def joinO(name):
-    
 
-    images = [Image.open(x) for x in [ str(name)+" 12.jpg", str(name)+" 24.jpg", str(name)+" 48.jpg", str(name)+" 96.jpg", str(name)+" 144.jpg", str(name)+" 192.jpg",str(name)+" 240.jpg", str(name)+" 288.jpg"]]
-    widths, heights = zip(*(i.size for i in images))
+### new  prediction 
 
-    total_width = sum(widths)
-    max_height = max(heights)
 
-    new_im = Image.new('RGB', (total_width, max_height))
+def predictionArima(df):
+    start_time = time.time()
+    window = pd.DataFrame(columns=['Current test', 'Current prediction','MSE', 'Glycemia prediction RMSE (mg/dl)', 'PSW', 'Prediction Horizon (minutes)'])
 
-    x_offset = 0
-    for im in images:
-        new_im.paste(im, (x_offset,0))
-        x_offset += im.size[0]
-        os.remove(im)
+    for n in PSW:
+        for v in range(0,inter):
+                   
+            interval = (v+1)*15
+            windo= n/12
+            
+            for x in range((len(df)-n-v)):
 
-    new_im.save("Result " + str(name) +".jpg")
+                #print(v, x)            
+                train = df.iloc[x:n+x]
+                test = df.iloc[n+x:n+x+v+1]
 
-    imgs= [ str(name)+" 12.jpg", str(name)+" 24.jpg", str(name)+" 48.jpg", str(name)+" 96.jpg", str(name)+" 144.jpg", str(name)+" 192.jpg",str(name)+" 240.jpg", str(name)+" 288.jpg"]
-    for ims in imgs:
+               
+                model = SARIMAX(train, order=orderArima    ,enforce_stationarity=False , enforce_invertibility=False).fit()
+        
+                
 
-        os.remove(ims)
+                #pred = result.predict(start= n+x, end= n+x+v, exog= test['sugarValue'])
+                pred = model.forecast(step = v+1)
+                pred= pred.values
+                #model = SARIMAX(df['sugarValue'], order=(0, 1, 3), seasonal_order=(0, 0, 0, 12), enforce_invertibility=False).fit()
+                #pred = result.predict(n, n+v)
+                
+                
+                window = app(window, train, test['sugarValue'] ,pred, interval, windo)
+             
+            v= v+1
+        
+    print("--- %s Seconds for computation ---" % (time.time() - start_time))
+    return window
+
+
+def predictionRFSVM(df, X, y, classi):
+    start_time = time.time()
+    window = pd.DataFrame(columns=['Current test', 'Current prediction','MSE', 'Glycemia prediction RMSE (mg/dl)', 'PSW', 'Prediction Horizon (minutes)'])
+
+
+    for n in PSW:
+        for v in range(0,inter):
+            
+            #n=z ##3h
+            
+            interval = (v+1)*15
+            windo= n/12
+            
+            for x in range((len(df)-n-v)):
+
+                X_train = X.iloc[x:n+x]
+                X_test = X.iloc[n+x:n+x+v+1]
+                y_train = y.iloc[x:n+x]
+                y_test = y.iloc[n+x:n+x+v+1]
+
+                #rfc = RandomForestClassifier()
+                #svclassifier = SVR()
+                classifit = classi
+                classifit.fit(X_train,y_train)
+                # predictions
+                pred = classifit.predict(X_test)
+                
+                
+                window = app(window, y_train, y_test ,pred, interval, windo)
+                x=x+1
+                        
+            v= v+1
+        n=n+1
+    print("--- %s Seconds for computation ---" % (time.time() - start_time))
+    return window
+
+

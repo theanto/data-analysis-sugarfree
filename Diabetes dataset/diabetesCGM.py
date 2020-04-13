@@ -1,6 +1,7 @@
-import os
-import pandas as pd
-from external import *
+
+from functions import *
+
+
 
 
 def pathos():
@@ -46,22 +47,38 @@ for f in xlsx:
 
         
         d[user] = pd.DataFrame()
+        '''
         data1 = pd.read_excel(str(path)+'/'+str(x) , header=11, parse_dates=['Timestamp'])
         #data1 = pd.read_excel('Dati CGM/' +str(path) +'/'+str(x) , header=11, parse_dates=['Timestamp'])
         d[user] = d[user].append(data1)
         d[user] = d[user][['Timestamp', 'BG Reading (mg/dL)','ISIG Value', 'Sensor Glucose (mg/dL)']]
         d[user]  = d[user].dropna(thresh=3)
         d[user] = d[user].rename({'Sensor Glucose (mg/dL)': 'sugarValue'}, axis=1)
+        '''
+        d[user] = cleanCGM(d[user], path, x)
 
         
-        data2= preprocess(d[user], 1)
+        data1= preprocess(d[user], 0)
+        data2= preprocess(d[user], 2)
 
+
+
+      
         X = data2.drop('sugarValue', axis=1)
         y = data2['sugarValue']
 
-        Arima = prediction(d[user],1,1,0,0,5,0,2)
-        RF = prediction(data2,2,1, X, y,0,0,0)
-        SVM = prediction(data2,3,1, X, y,0,0,0)
+        
+        print("Arima "+str(user)+": ")
+        Arima = predictionArima(data1)
+        boxplot(Arima, "Arima "+str(user))
+
+        print("RF "+str(user)+": ")
+        RF = predictionRFSVM(data2,X,y,RandomForestClassifier())
+        boxplot(RF, "RF "+str(user))
+        
+        print("SVM "+str(user)+": ")
+        SVM = predictionRFSVM(data2,X,y,SVC(kernel='linear'))
+        boxplot(SVM, "SVM "+str(user))
 
         Arima.to_csv("Arima "+str(user)+".csv", sep='\t')
         
@@ -69,8 +86,7 @@ for f in xlsx:
         
         SVM.to_csv("SVM "+str(user)+".csv", sep='\t')
 
-        boxplot(Arima,user,  "Arima", 3, 72)
-        boxplot(RF, user, "RF", 3, 72)
-        boxplot(SVM,user, "SVM",3,72)
+       
 
-        joinI(user)
+        joinI("Arima "+str(user),"RF "+str(user), "SVM "+str(user))
+        
